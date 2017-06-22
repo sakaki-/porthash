@@ -1,0 +1,266 @@
+#!/bin/bash
+#
+# Create (if -c specified) a cascaded sha512 hash of /usr/portage and sign it
+# with the sakaki automated signing key; or verify such a hash (default).
+#
+# The cascaded ("master") hash covers the contents of all files, and also some
+# metadata about all files and directories (name, perms, type, owner, group),
+# with certain exclusions (distfiles/..., packages/..., and .git/...).
+#
+# This simple script is intended to provide assurance - when distributing a
+# Portage repo snapshot (whether of the main gentoo repo, or a custom overlay)
+# over an unauthenticated channel (e.g. rsync) - that the consitutent ebuilds,
+# manifests etc. have not been tampered with in transit.
+#
+# Copyright (c) 2017 sakaki <sakaki@deciban.com>
+#
+# License (GPL v3.0)
+# ------------------
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+
+set -e
+set -u
+set -o pipefail
+shopt -s nullglob
+
+VERSION="1.0.0"
+RDIR="/usr/portage"
+HASHNAME="repo.hash"
+HASHFILE="./${HASHNAME}"
+declare -i HASHFORMAT=1
+HASHFN=sha512sum
+declare -i ARG_VERIFY=1 ARG_VERSION=0
+KEYID="8B09C0A7"
+LONG_KEYID=""
+HASHOUT=""
+
+NO_ERR=0
+ERR_GENERIC=1
+ERR_NO_HASHFILE=2
+ERR_NO_HASHSIG=3
+ERR_BAD_HASHSIG=4
+ERR_BAD_SIGNER=5
+ERR_BAD_HASHFORMAT=6
+ERR_HASHES_DIFFER=7
+ERR_CANT_SAVE_HASHFILE=8
+ERR_CANT_SAVE_HASHSIG=9
+ERR_NO_SUCH_PRIVATE_KEY=10
+ERR_NO_SUCH_PUBLIC_KEY=11
+
+ARGV0="${0}"
+PROGNAME="${ARGV0##*/}"
+
+# warning echos
+wecho() { echo "${PROGNAME}: warning: $*" 1>&2 ; }
+
+# error echos
+eecho() { echo "${PROGNAME}: error: $*" 1>&2 ; }
+
+# info echos
+iecho() { echo "${PROGNAME}: $*" ; }
+
+# compute the compound hash of ${RDIR}
+# exclude the packages, distfiles and .git dirs, and the repository snapshot
+# hash (and sig) itself; we then create a hash of each constitutent file, hash
+# that compound digest, and save result into the chash variable
+# then we create a hash of the stat of all files (including directories
+# this time) and save result into the shash variable
+# we then concatenate chash and shash, and hash that, to get the final
+# ("master hash") result, which is saved in HASHOUT
+# the working directory should be ${RDIR} on entry
+compute_master_hash() {
+	local chash="" shash=""
+	# ensure canonical sort order
+	export LC_ALL=C
+	# following is hash of hashes of all files' contents
+	chash="$(find . -mindepth 1 \
+		-type f -path "${HASHFILE}" -prune -o \
+		-type f -path "${HASHFILE}.asc" -prune -o \
+		-type d -path "./packages" -prune -o \
+		-type d -path "./distfiles" -prune -o \
+		-type d -path "./git" -prune -o \
+		-type f -print0 | sort -z | \
+		xargs -0 ${HASHFN} | ${HASHFN})"
+	# following is hash of file & directory metadata (stats)
+	# in format "<filename> <octalperms> <filetype> <owner> <group>
+	shash="$(find . -mindepth 1 \
+		-type f -path "${HASHFILE}" -prune -o \
+		-type f -path "${HASHFILE}.asc" -prune -o \
+		-type d -path "./packages" -prune -o \
+		-type d -path "./distfiles" -prune -o \
+		-type d -path "./git" -prune -o \
+		-print0 | sort -z | \
+		xargs -0 stat -c '%n %a %F %U %G' | ${HASHFN})"
+	# master hash is hash of both of these intermediate hashes
+	# so changing a file, or its ownership or permissions,
+	# or even omitting an empty directory, will cause a mismatch
+	HASHOUT="$(echo "${chash} ${shash}" | ${HASHFN})"
+}
+
+# enter ${RDIR}, compute the its master hash, save this
+# to ${HASHFILE} (with some metadata) and then sign the result
+# using the specified private key (default, 8B09C0A7)
+compute_and_sign_master_hash() {
+	iecho "Entering ${RDIR}..."
+	cd "${RDIR}"
+	iecho "Removing old hashfile and signature, if present..."
+	rm -f "${HASHFILE}" "${HASHFILE}.asc"
+	iecho "Computing master hash of ${RDIR}, may take some time..."
+	compute_master_hash
+	iecho "Saving hashfile..."
+	echo "Hash format: ${HASHFORMAT}" > "${HASHFILE}" \
+	|| (eecho "Failed to write ${HASHFILE}"; exit $ERR_CANT_SAVE_HASHFILE)
+	echo "Date: $(date -u +"%Y-%m-%d %H:%M")" >> "${HASHFILE}"
+	echo "Hash: ${HASHFN}" >> "${HASHFILE}"
+	echo "${HASHOUT}" >> "${HASHFILE}"
+	iecho "Signing hashfile..."
+	gpg --default-key ${LONG_KEYID} --armor --detach-sign "${HASHFILE}" &>/dev/null \
+	|| (eecho "Failed to create ${HASHFILE}.asc"; exit $ERR_CANT_SAVE_HASHSIG)	
+	iecho "Done!"
+}
+
+# enter ${RDIR}, check that the ${HASHFILE} therein has a valid signature
+# in ${HASHFILE}.asc, and that its metadata is valid; if so, compute the
+# master hash, and check if that also matches
+verify_master_hash() {
+	local format hashfile_hashout signout
+
+	iecho "Entering ${RDIR}..."
+	cd "${RDIR}"
+	iecho "Verifying existing hashfile..."
+	if [[ ! -s "${HASHFILE}" ]]; then
+		eecho "No hashfile found!"
+		exit $ERR_NO_HASHFILE
+	fi
+	if [[ ! -s "${HASHFILE}.asc" ]]; then
+		eecho "No hashfile signature found!"
+		exit $ERR_NO_HASHSIG
+	fi
+	# OK we have a hashfile, does the signature check out?
+	if ! signout="$(gpg --status-fd 1 --verify "${HASHFILE}.asc" "${HASHFILE}" 2>/dev/null)"; then
+		eecho "Hashfile - BAD signature"
+		exit $ERR_BAD_HASHSIG
+	fi
+	# signed OK (by someone whose pubkey is on our keyring), but
+	# still need to check it is the correct signer
+	if ! grep -q "^\[GNUPG:\] GOODSIG ${LONG_KEYID}" <<<"${signout}"; then
+		eecho "Hashfile - signed, but by wrong key"
+		exit $ERR_BAD_SIGNER
+	fi
+	# is the file format not too modern?
+	format="$(grep -oP "Hash format: \K[[:digit:].]+" "${HASHFILE}")"
+	if ((format>HASHFORMAT)); then
+		eecho "Hashfile format unknown (more modern than us)"
+		exit $ERR_BAD_HASHFORMAT
+	fi
+	# OK, must be version 1, so sha512sum used, last line
+	# contains the hash; no other format variants to worry about
+	# (for now)
+	hashfile_hashout="$(tail -n 1 "${HASHFILE}")"
+	iecho "Hashfile signature and format valid"
+	iecho "Computing master hash of ${RDIR}, may take some time..."
+	compute_master_hash
+	if [[ "${HASHOUT}" != "${hashfile_hashout}" ]]; then
+		eecho "Hashfile and computed hashes DIFFER"
+		exit $ERR_HASHES_DIFFER
+	fi
+	iecho "Hashfile and computed hashes match"
+	iecho "OK: Repo verified"
+}
+
+# print simple help message and quit
+usage() {
+	cat <<-EOF
+	Usage: $0 [options]
+
+	Compute or verify (default) signed hash of full Portage tree
+	The hash is saved to ${HASHNAME}, the signature to
+	${HASHNAME}.asc
+
+	Useful when distributing snapshots via e.g. rsync
+	Hash covers all file contents (recursively), and also the
+	ownership, filetype and permissions of all files and directories.
+
+	The hash does _not_ cover the distfiles, packages or .git directories,
+	nor the ${HASHNAME} or ${HASHNAME}.asc files themselves.
+
+	Options:
+	  -c, --create        Create a new master hash (and sign it)
+	                      (default is to verify an existing hash)
+	  -h, --help          Show this help screen and exit
+	  --key=KEYID         Use key KEYID to verify/sign (default: 8B09C0A7)
+	  --repo=RDIR         Repository tree location (default: /usr/portage)
+	  -v, --version       Show version number of ${PROGNAME} and exit
+	EOF
+	if [[ -n $* ]] ; then
+		printf "\nError: %s\n" "$*" 1>&2
+		exit $ERR_GENERIC
+	else
+		exit $NO_ERR
+	fi
+}
+
+
+# lookup the long keyid in the keyring (private or public key, it depends
+# on whether we are going to be verifying an exising hash, or signing a
+# new one)
+# exit with status ERR_NO_SUCH_KEY if not found
+check_keyid() {
+	if ((ARG_VERIFY==0)); then
+		LONG_KEYID="$(gpg --with-colons --list-secret-key "${KEYID}" | awk -F: '/^sec:/ { print $5 }')" \
+		|| (eecho "Could not find private key ${KEYID} in keyring"; exit $ERR_NO_SUCH_PRIVATE_KEY)
+		iecho "Using private key ${LONG_KEYID}"
+	else
+		LONG_KEYID="$(gpg --with-colons --list-public-key "${KEYID}" | awk -F: '/^pub:/ { print $5 }')" \
+		|| (eecho "Could not find public key ${KEYID} in keyring"; exit $ERR_NO_SUCH_PUBLIC_KEY)
+		iecho "Using public key ${LONG_KEYID}"
+	fi
+}
+
+
+# just display program version, undecorated
+print_version() {
+    echo "${VERSION}"
+}
+
+# parse arguments and then either compute or (attempt to) verify the hasn,
+# as directed
+# TODO - migrate to getopt
+main() {
+	local arg
+
+	for arg in "$@" ; do
+		local v=${arg#*=}
+		case ${arg} in
+			-c|--create)  ARG_VERIFY=0 ;;
+			-h|--help)    usage ;;
+			--key=*)      KEYID=${v} ;;
+			--repo=*)     RDIR=${v} ;;
+			-v|--version) ARG_VERSION=1 ;;
+			*)            usage "Invalid option '${arg}'" ;;
+		esac
+	done
+	if ((ARG_VERSION==1)); then
+		print_version
+		exit $NO_ERR
+	fi
+	check_keyid
+	if ((ARG_VERIFY==0)); then
+		compute_and_sign_master_hash
+	else
+		verify_master_hash
+	fi
+	exit $NO_ERR
+}
+
+main "$@"

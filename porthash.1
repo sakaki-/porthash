@@ -1,0 +1,162 @@
+.TH PORTHASH 1 "Version 1.0.0: June 2017"
+.SH NAME
+porthash \- compute, or verify (default), signed hash of Portage repo
+.SH SYNOPSIS
+.B porthash
+[\fIoptions\fR]
+.SH DESCRIPTION
+.B porthash
+is a simple script to save, or by default verify, a
+\fBsigned master hash\fR of
+the specified Portage repository tree (by default, \fI/usr/portage\fR).
+It is intended to provide assurance -
+when distributing a Portage repo
+snapshot (whether of main \fBgentoo repo\fR, or a custom overlay) over an
+unauthenticated channel (e.g. \fBrsync\fR(1)) - that the
+consitutent ebuilds, manifests etc. have not been tampered with in transit.
+
+The master hash is calculated by first creating a sorted list of hashes
+of the contents of each file in the repo tree
+(excluding \fIdistfiles\fR, \fIpackages\fR and \fI.git\fR
+directories, and the hash (\fIrepo.hash\fR) and signature
+(\fIrepo.hash.asc\fR) files), then hashing that list itself
+and temporarily storing the result.
+
+Next, a sorted list of hashes of the \fBstat\fR(1)
+of all files \fIand\fR directories in the repo
+tree is calculated (with the same excluded set), and \fIthat\fR
+resulting list hashed and temporarily stored.
+(The hashed \fBstat\fR(1) output consists of
+the relative
+file path, octal permissions, file type, owner name and group name for
+each file and (sub)directory.)
+
+Then, the two stored intermediate hashes are concatenated and hashed again,
+to create the final result (the "master hash").
+
+When \fBporthash\fR is invoked
+\fIwith\fR the \fB--create\fR option, the master hash is saved
+(along with some metadata) in the file \fIrepo.hash\fR in the top-level
+repo directory. It is then signed (by default, using private key
+\fB8B09C0A7\fR (which must exist in root's default keyring and be usable
+without passphrase)
+unless a different one is specified via the \fB--key\fR option), and the
+signature stored (in ascii form) in \fIrepo.hash.asc\fR, also in
+the top-level repo directory.
+
+When invoked \fIwithout\fR the \fB--create\fR option (default), the validity of
+\fIrepo.hash\fR is first checked, and its signature verified (by default,
+against the public key \fB8B09C0A7\fR (which must exist in root's
+default keyring)
+unless a different one is specified via the \fB--key\fR option).
+If OK, then the computed master hash is compared with that
+stored in \fIrepo.hash\fR, and, if they match, the repo is declared valid;
+otherwise an error is reported (and a non-zero error code returned, see
+\fBEXIT STATUS\fR below).
+
+This version of \fBporthash\fR uses \fBsha512sum\fR(1) as its hash function.
+
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-create
+Instead of validating an existing hash (the default),
+computes a new master hash, saves to \fIrepo.hash\fR, signs it and saves
+the signature to \fIrepo.hash.asc\fR.
+
+Any previous \fIrepo.hash\fR and \fIrepo.hash.asc\fR for the repo
+will be
+overwritten by this process.
+.TP
+.BR \-h ", " \-\-help
+Displays a short help screen, and exits.
+.TP
+.BR \-\-key\=KEYID
+Use the specified KEYID to select the appropriate \fBgpg2\fR(1)
+public key (when verifying) or private key (when creating) the hash
+signature.
+Defaults
+to \fB8B09C0A7\fR if not specified.
+.TP
+.BR \-\-repo\=RDIR
+Specify the base directory for the repo in question. Defaults to
+\fI/usr/portage\fR if unspecified.
+.TP
+.BR \-v ", " \-\-version
+Displays the version number of \fBporthash\fR, and exits.
+.SH EXIT STATUS
+The following exit status codes may be returned by \fIporthash\fR
+when verifying an existing signed master hash:
+.RS
+.IP \(bu 2
+.BR 0
+no error
+.IP \(bu 2
+.BR 1
+misc. error (bad option etc.)
+.IP \(bu 2
+.BR 2
+the file \fIrepo.hash\fR does not exist
+.IP \(bu 2
+.BR 3
+the file \fIrepo.hash.asc\fR does not exist
+.IP \(bu 2
+.BR 4
+\fIrepo.hash.asc\fR not a valid signature for \fIrepo.hash\fR
+.IP \(bu 2
+.BR 5
+\fIrepo.hash.asc\fR issued by the wrong signer 
+.IP \(bu 2
+.BR 6
+\fIrepo.hash\fR has an unknown format (too modern?)
+.IP \(bu 2
+.BR 7
+\fIrepo.hash\fR does not match our computed master hash
+.IP \(bu 2
+.BR 11
+specified public key not in root's default keyring
+.PP
+.RE
+And following exit status codes may be returned by \fIporthash\fR
+when creating a new hash (\fB--create\fR option):
+.RS
+.IP \(bu 2
+.BR 0
+no error
+.IP \(bu 2
+.BR 1
+misc. error (bad option etc.)
+.IP \(bu 2
+.BR 8
+failed to create \fIrepo.hash\fR
+.IP \(bu 2
+.BR 9
+failed to create \fIrepo.hash.asc\fR
+.IP \(bu 2
+.BR 10
+specified private key not in root's default keyring
+.PP
+.RE
+.SH BUGS
+Although \fBporthash\fR does ignore the \fI.git\fR directory if present,
+it does \fBnot\fR consider the contents of any \fI.gitignore\fR file.
+This is not usually a problem, as long as (where the repo in question is
+checked in under \fBgit\fR(1)), the master hash is computed in a clone of
+the checked-in tree, rather than in the working tree directly.
+.SH COPYRIGHT
+.nf
+Copyright \(co 2017 sakaki
+License GPLv3+ (GNU GPL version 3 or later)
+<http://gnu.org/licenses/gpl.html>
+
+This is free software, you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+.fi
+.SH AUTHORS
+sakaki \(em send bug reports or comments to <sakaki@deciban.com>
+.SH "SEE ALSO"
+.BR git (1),
+.BR gpg2 (1),
+.BR rsync (1),
+.BR sha512sum (1),
+.BR stat (1),
+.BR portage (5).
