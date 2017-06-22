@@ -1,4 +1,4 @@
-.TH PORTHASH 1 "Version 1.0.0: June 2017"
+.TH PORTHASH 1 "Version 1.0.1: June 2017"
 .SH NAME
 porthash \- compute, or verify (default), signed hash of Portage repo
 .SH SYNOPSIS
@@ -38,7 +38,7 @@ When \fBporthash\fR is invoked
 \fIwith\fR the \fB--create\fR option, the master hash is saved
 (along with some metadata) in the file \fIrepo.hash\fR in the top-level
 repo directory. It is then signed (by default, using private key
-\fB8B09C0A7\fR (which must exist in root's default keyring and be usable
+\fB5D90CAF4\fR (which must exist in root's default keyring and be usable
 without passphrase)
 unless a different one is specified via the \fB--key\fR option), and the
 signature stored (in ascii form) in \fIrepo.hash.asc\fR, also in
@@ -46,7 +46,7 @@ the top-level repo directory.
 
 When invoked \fIwithout\fR the \fB--create\fR option (default), the validity of
 \fIrepo.hash\fR is first checked, and its signature verified (by default,
-against the public key \fB8B09C0A7\fR (which must exist in root's
+against the public key \fB5D90CAF4\fR (which must exist in root's
 default keyring)
 unless a different one is specified via the \fB--key\fR option).
 If OK, then the computed master hash is compared with that
@@ -75,7 +75,7 @@ Use the specified KEYID to select the appropriate \fBgpg2\fR(1)
 public key (when verifying) or private key (when creating) the hash
 signature.
 Defaults
-to \fB8B09C0A7\fR if not specified.
+to \fB5D90CAF4\fR if not specified.
 .TP
 .BR \-\-repo\=RDIR
 Specify the base directory for the repo in question. Defaults to
