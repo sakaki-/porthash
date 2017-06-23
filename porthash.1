@@ -1,4 +1,4 @@
-.TH PORTHASH 1 "Version 1.0.2: June 2017"
+.TH PORTHASH 1 "Version 1.0.3: June 2017"
 .SH NAME
 porthash \- compute, or verify (default), signed hash of Portage repo
 .SH SYNOPSIS
@@ -18,7 +18,8 @@ consitutent ebuilds, manifests etc. have not been tampered with in transit.
 The master hash is calculated by first creating a sorted list of hashes
 of the contents of each file in the repo tree
 (excluding \fIdistfiles\fR, \fIpackages\fR and \fI.git\fR
-directories, and the hash (\fIrepo.hash\fR) and signature
+directories, optionally the \fImetadata\fR directory,
+and the hash (\fIrepo.hash\fR) and signature
 (\fIrepo.hash.asc\fR) files), then hashing that list itself
 and temporarily storing the result.
 
@@ -76,6 +77,20 @@ public key (when verifying) or private key (when creating) the hash
 signature.
 Defaults
 to \fB5D90CAF4\fR if not specified.
+
+.TP
+.BR \-m ", " \-\-metadata
+Do not omit the \fImetadata\fR directory when creating a new hash
+(it is omitted by default).
+This option is
+ignored when \fBverifying\fR a hash, since the \fIrepo.hash\fR file
+contains a flag
+specifying whether or not this directory was considered at the time of
+hash creation.
+
+NB: if you do use the \fB-m\fR flag, take care that e.g. regenerated
+md5-cache entries (or similar) do not end up causing false hash validation
+failures at the client end.
 .TP
 .BR \-\-repo\=RDIR
 Specify the base directory for the repo in question. Defaults to
