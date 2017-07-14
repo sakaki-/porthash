@@ -1,4 +1,4 @@
-.TH PORTHASH 1 "Version 1.0.3: June 2017"
+.TH PORTHASH 1 "Version 1.0.4: July 2017"
 .SH NAME
 porthash \- compute, or verify (default), signed hash of Portage repo
 .SH SYNOPSIS
@@ -71,13 +71,16 @@ overwritten by this process.
 .BR \-h ", " \-\-help
 Displays a short help screen, and exits.
 .TP
+.BR \-\-homedir\=HOMEDIR
+Use the specified HOMEDIR as the base directory for \fBgpg2\fR(1).
+Defaults to \fI/root/.gnupg\fR if not specified.
+.TP
 .BR \-\-key\=KEYID
 Use the specified KEYID to select the appropriate \fBgpg2\fR(1)
 public key (when verifying) or private key (when creating) the hash
 signature.
 Defaults
 to \fB5D90CAF4\fR if not specified.
-
 .TP
 .BR \-m ", " \-\-metadata
 Do not omit the \fImetadata\fR directory when creating a new hash

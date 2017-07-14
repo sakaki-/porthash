@@ -34,10 +34,11 @@ set -u
 set -o pipefail
 shopt -s nullglob
 
-VERSION="1.0.3"
+VERSION="1.0.4"
 RDIR="/usr/portage"
 HASHNAME="repo.hash"
 HASHFILE="./${HASHNAME}"
+HOMEDIR="/root/.gnupg"
 declare -i HASHFORMAT=1
 HASHFN=sha512sum
 declare -i ARG_VERIFY=1 ARG_VERSION=0 ARG_METADATA=0
@@ -140,7 +141,7 @@ compute_and_sign_master_hash() {
 	fi
 	echo "${HASHOUT}" >> "${HASHFILE}"
 	iecho "Signing hashfile..."
-	gpg --default-key ${LONG_KEYID} --armor --detach-sign "${HASHFILE}" &>/dev/null \
+	gpg --homedir "${HOMEDIR}" --default-key ${LONG_KEYID} --armor --detach-sign "${HASHFILE}" &>/dev/null \
 	|| (eecho "Failed to create ${HASHFILE}.asc"; exit $ERR_CANT_SAVE_HASHSIG)	
 	iecho "Done!"
 }
@@ -163,7 +164,7 @@ verify_master_hash() {
 		exit $ERR_NO_HASHSIG
 	fi
 	# OK we have a hashfile, does the signature check out?
-	if ! signout="$(gpg --status-fd 1 --verify "${HASHFILE}.asc" "${HASHFILE}" 2>/dev/null)"; then
+	if ! signout="$(gpg --homedir "${HOMEDIR}" --status-fd 1 --verify "${HASHFILE}.asc" "${HASHFILE}" 2>/dev/null)"; then
 		eecho "Hashfile - BAD signature"
 		exit $ERR_BAD_HASHSIG
 	fi
@@ -221,6 +222,7 @@ usage() {
 	  -c, --create        Create a new master hash (and sign it)
 	                      (default is to verify an existing hash)
 	  -h, --help          Show this help screen and exit
+	  --homedir=HOMEDIR   Use HOMEDIR as gpg's home (default: /root/.gnupg)
 	  --key=KEYID         Use key KEYID to verify/sign (default: 5D90CAF4)
 	  -m, --metadata      Include metadata directory when creating hash
 	                      (omitted by default)
@@ -242,11 +244,11 @@ usage() {
 # exit with status ERR_NO_SUCH_KEY if not found
 check_keyid() {
 	if ((ARG_VERIFY==0)); then
-		LONG_KEYID="$(gpg --with-colons --list-secret-key "${KEYID}" | awk -F: '/^sec:/ { print $5 }')" \
+		LONG_KEYID="$(gpg --homedir "${HOMEDIR}" --with-colons --list-secret-key "${KEYID}" | awk -F: '/^sec:/ { print $5 }')" \
 		|| (eecho "Could not find private key ${KEYID} in keyring"; exit $ERR_NO_SUCH_PRIVATE_KEY)
 		iecho "Using private key ${LONG_KEYID}"
 	else
-		LONG_KEYID="$(gpg --with-colons --list-public-key "${KEYID}" | awk -F: '/^pub:/ { print $5 }')" \
+		LONG_KEYID="$(gpg --homedir "${HOMEDIR}" --with-colons --list-public-key "${KEYID}" | awk -F: '/^pub:/ { print $5 }')" \
 		|| (eecho "Could not find public key ${KEYID} in keyring"; exit $ERR_NO_SUCH_PUBLIC_KEY)
 		iecho "Using public key ${LONG_KEYID}"
 	fi
@@ -269,6 +271,7 @@ main() {
 		case ${arg} in
 			-c|--create)    ARG_VERIFY=0 ;;
 			-h|--help)      usage ;;
+			--homedir=*)    HOMEDIR=${v} ;;
 			--key=*)        KEYID=${v} ;;
 			--repo=*)       RDIR=${v} ;;
 			-m|--metadata)  ARG_METADATA=1 ;;
