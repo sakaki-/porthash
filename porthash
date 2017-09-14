@@ -119,7 +119,7 @@ compute_master_hash() {
 	HASHOUT="$(echo "${chash} ${shash}" | ${HASHFN})"
 }
 
-# enter ${RDIR}, compute the its master hash, save this
+# enter ${RDIR}, compute its master hash, save this
 # to ${HASHFILE} (with some metadata) and then sign the result
 # using the specified private key (default, 5D90CAF4)
 compute_and_sign_master_hash() {
@@ -142,7 +142,7 @@ compute_and_sign_master_hash() {
 	echo "${HASHOUT}" >> "${HASHFILE}"
 	iecho "Signing hashfile..."
 	gpg --homedir "${HOMEDIR}" --default-key ${LONG_KEYID} --armor --detach-sign "${HASHFILE}" &>/dev/null \
-	|| (eecho "Failed to create ${HASHFILE}.asc"; exit $ERR_CANT_SAVE_HASHSIG)	
+	|| (eecho "Failed to create ${HASHFILE}.asc"; exit $ERR_CANT_SAVE_HASHSIG)
 	iecho "Done!"
 }
 
@@ -206,17 +206,17 @@ usage() {
 	cat <<-EOF
 	Usage: $0 [options]
 
-	Create, or verify (default), a signed hash of full Portage tree
-	The hash is saved to ${HASHNAME}, the signature to
+	Create, or verify (default), a signed hash of the full Portage tree
+	The hash is saved to ${HASHNAME}, and the signature to
 	${HASHNAME}.asc
 
-	Useful when distributing snapshots via e.g. rsync
-	Hash covers all file contents (recursively), and also the
-	ownership, filetype and permissions of all files and directories.
+	Useful when distributing snapshots via e.g. rsync.
+	The hash recursively covers the content, ownership, filetype and permissions
+	of all files and directories under the given repository.
 
-	The hash does _not_ cover the distfiles, packages or .git directories,
-	nor the ${HASHNAME} or ${HASHNAME}.asc files themselves. It will also
-	exclude the metadata directory, unless the -m option is given.
+	The hash does _not_ cover distfiles, packages or .git directories,
+	nor the ${HASHNAME} or ${HASHNAME}.asc files themselves. It also
+	excludes the metadata directory, unless the -m option is given.
 
 	Options:
 	  -c, --create        Create a new master hash (and sign it)
@@ -224,7 +224,7 @@ usage() {
 	  -h, --help          Show this help screen and exit
 	  --homedir=HOMEDIR   Use HOMEDIR as gpg's home (default: /root/.gnupg)
 	  --key=KEYID         Use key KEYID to verify/sign (default: 5D90CAF4)
-	  -m, --metadata      Include metadata directory when creating hash
+	  -m, --metadata      Include metadata directory when creating the hash
 	                      (omitted by default)
 	  --repo=RDIR         Repository tree location (default: /usr/portage)
 	  -v, --version       Show version number of ${PROGNAME} and exit
@@ -260,7 +260,7 @@ print_version() {
     echo "${VERSION}"
 }
 
-# parse arguments and then either compute or (attempt to) verify the hasn,
+# parse arguments and then either compute or (attempt to) verify the hash,
 # as directed
 # TODO - migrate to getopt
 main() {
