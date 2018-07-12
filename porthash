@@ -171,8 +171,8 @@ verify_master_hash() {
 	iecho "Verifying existing hashfile..."
 	if [[ ! -s "${HASHFILE}" ]]; then
 		if [[ -s "${OLDHASHFILE}" ]]; then
-			eecho "Migrating hashfile to local subdirectory"
-			eecho "(for gemato compatibility)"
+			wecho "Migrating hashfile to local subdirectory"
+			wecho "(for gemato compatibility)"
 			mkdir -pv "${HASHDIR}"
 			mv -v "${OLDHASHFILE}" "${HASHFILE}"
 		else
@@ -182,8 +182,8 @@ verify_master_hash() {
 	fi
 	if [[ ! -s "${HASHFILE}.asc" ]]; then
 		if [[ -s "${OLDHASHFILE}.asc" ]]; then
-			eecho "Migrating hashfile signature to local subdirectory"
-			eecho "(for gemato compatibility)"
+			wecho "Migrating hashfile signature to local subdirectory"
+			wecho "(for gemato compatibility)"
 			mv -v "${OLDHASHFILE}.asc" "${HASHFILE}.asc"
 		else
 			eecho "No hashfile signature found!"
