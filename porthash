@@ -14,7 +14,7 @@
 # manifests etc. have not been tampered with in transit.
 #
 # Ultimately it will be replaced by Gentoo's gemato, once that is fully
-# stabilized. In this version, for compatibility with gemato, the repo.hash
+# stabilized. In this version, for compatability with gemato, the repo.hash
 # and repo.hash.asc files are placed in the ./local subdirectory, rather than
 # at the top level (gemato ignores the contents of this subdirectory).
 #
@@ -172,7 +172,7 @@ verify_master_hash() {
 	if [[ ! -s "${HASHFILE}" ]]; then
 		if [[ -s "${OLDHASHFILE}" ]]; then
 			wecho "Migrating hashfile to local subdirectory"
-			wecho "(for gemato compatibility)"
+			wecho "(for gemato compatability)"
 			mkdir -pv "${HASHDIR}"
 			mv -v "${OLDHASHFILE}" "${HASHFILE}"
 		else
@@ -183,7 +183,7 @@ verify_master_hash() {
 	if [[ ! -s "${HASHFILE}.asc" ]]; then
 		if [[ -s "${OLDHASHFILE}.asc" ]]; then
 			wecho "Migrating hashfile signature to local subdirectory"
-			wecho "(for gemato compatibility)"
+			wecho "(for gemato compatability)"
 			mv -v "${OLDHASHFILE}.asc" "${HASHFILE}.asc"
 		else
 			eecho "No hashfile signature found!"
