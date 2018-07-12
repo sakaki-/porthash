@@ -13,7 +13,12 @@
 # over an unauthenticated channel (e.g. rsync) - that the consitutent ebuilds,
 # manifests etc. have not been tampered with in transit.
 #
-# Copyright (c) 2017 sakaki <sakaki@deciban.com>
+# Ultimately it will be replaced by Gentoo's gemato, once that is fully
+# stabilized. In this version, for compatibility with gemato, the repo.hash
+# and repo.hash.asc files are placed in the ./local subdirectory, rather than
+# at the top level (gemato ignores the contents of this subdirectory).
+#
+# Copyright (c) 2018 sakaki <sakaki@deciban.com>
 #
 # License (GPL v3.0)
 # ------------------
@@ -34,10 +39,12 @@ set -u
 set -o pipefail
 shopt -s nullglob
 
-VERSION="1.0.5"
+VERSION="1.0.6"
 RDIR="/usr/portage"
 HASHNAME="repo.hash"
-HASHFILE="./${HASHNAME}"
+OLDHASHFILE="./${HASHNAME}"
+HASHDIR="./local"
+HASHFILE="${HASHDIR}/${HASHNAME}"
 HOMEDIR="/root/.gnupg"
 declare -i HASHFORMAT=1
 HASHFN=sha512sum
@@ -94,10 +101,13 @@ compute_master_hash() {
 	export LC_ALL=C
 	# following is hash of hashes of all files' contents
 	chash="$(find . -mindepth 1 \
+		-type f -path "${OLDHASHFILE}" -prune -o \
+		-type f -path "${OLDHASHFILE}.asc" -prune -o \
 		-type f -path "${HASHFILE}" -prune -o \
 		-type f -path "${HASHFILE}.asc" -prune -o \
 		-type d -path "./packages" -prune -o \
 		-type d -path "./distfiles" -prune -o \
+		-type d -path "${HASHDIR}" -prune -o \
 		-type d -path "${METADATA}" -prune -o \
 		-type d -path "./.git" -prune -o \
 		-type f -print0 | sort -z | \
@@ -105,10 +115,13 @@ compute_master_hash() {
 	# following is hash of file & directory metadata (stats)
 	# in format "<filename> <octalperms> <filetype> <owner> <group>
 	shash="$(find . -mindepth 1 \
+		-type f -path "${OLDHASHFILE}" -prune -o \
+		-type f -path "${OLDHASHFILE}.asc" -prune -o \
 		-type f -path "${HASHFILE}" -prune -o \
 		-type f -path "${HASHFILE}.asc" -prune -o \
 		-type d -path "./packages" -prune -o \
 		-type d -path "./distfiles" -prune -o \
+		-type d -path "${HASHDIR}" -prune -o \
 		-type d -path "${METADATA}" -prune -o \
 		-type d -path "./.git" -prune -o \
 		-print0 | sort -z | \
@@ -126,10 +139,11 @@ compute_and_sign_master_hash() {
 	iecho "Entering ${RDIR}..."
 	cd "${RDIR}"
 	iecho "Removing old hashfile and signature, if present..."
-	rm -f "${HASHFILE}" "${HASHFILE}.asc"
+	rm -f "${HASHFILE}" "${HASHFILE}.asc" "${OLDHASHFILE}" "${OLDHASHFILE}.asc"
 	iecho "Computing master hash of ${RDIR}, may take some time..."
 	compute_master_hash
 	iecho "Saving hashfile..."
+	mkdir -pv "${HASHDIR}"
 	echo "Hash format: ${HASHFORMAT}" > "${HASHFILE}" \
 	|| (eecho "Failed to write ${HASHFILE}"; exit $ERR_CANT_SAVE_HASHFILE)
 	echo "Date: $(date -u +"%Y-%m-%d %H:%M")" >> "${HASHFILE}"
@@ -156,12 +170,25 @@ verify_master_hash() {
 	cd "${RDIR}"
 	iecho "Verifying existing hashfile..."
 	if [[ ! -s "${HASHFILE}" ]]; then
-		eecho "No hashfile found!"
-		exit $ERR_NO_HASHFILE
+		if [[ -s "${OLDHASHFILE}" ]]; then
+			eecho "Migrating hashfile to local subdirectory"
+			eecho "(for gemato compatibility)"
+			mkdir -pv "${HASHDIR}"
+			mv -v "${OLDHASHFILE}" "${HASHFILE}"
+		else
+			eecho "No hashfile found!"
+			exit $ERR_NO_HASHFILE
+		fi
 	fi
 	if [[ ! -s "${HASHFILE}.asc" ]]; then
-		eecho "No hashfile signature found!"
-		exit $ERR_NO_HASHSIG
+		if [[ -s "${OLDHASHFILE}.asc" ]]; then
+			eecho "Migrating hashfile signature to local subdirectory"
+			eecho "(for gemato compatibility)"
+			mv -v "${OLDHASHFILE}.asc" "${HASHFILE}.asc"
+		else
+			eecho "No hashfile signature found!"
+			exit $ERR_NO_HASHSIG
+		fi
 	fi
 	# OK we have a hashfile, does the signature check out?
 	if ! signout="$(gpg --homedir "${HOMEDIR}" --status-fd 1 --verify "${HASHFILE}.asc" "${HASHFILE}" 2>/dev/null)"; then
@@ -207,16 +234,17 @@ usage() {
 	Usage: $0 [options]
 
 	Create, or verify (default), a signed hash of the full Portage tree
-	The hash is saved to ${HASHNAME}, and the signature to
-	${HASHNAME}.asc
+	The hash is saved to ${HASHNAME}, and the
+	signature to ${HASHNAME}.asc
 
 	Useful when distributing snapshots via e.g. rsync.
 	The hash recursively covers the content, ownership, filetype and permissions
 	of all files and directories under the given repository.
 
-	The hash does _not_ cover distfiles, packages or .git directories,
-	nor the ${HASHNAME} or ${HASHNAME}.asc files themselves. It also
-	excludes the metadata directory, unless the -m option is given.
+	The hash does _not_ cover distfiles, packages, local or .git directories,
+	nor the ${HASHNAME} or ${HASHNAME}.asc
+	files themselves. It also excludes the metadata directory, unless
+	the -m option is given.
 
 	Options:
 	  -c, --create        Create a new master hash (and sign it)

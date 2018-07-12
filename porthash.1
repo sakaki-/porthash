@@ -1,4 +1,5 @@
-.TH PORTHASH 1 "Version 1.0.5: September 2017"
+
+.TH PORTHASH 1 "Version 1.0.6: July 2018"
 .SH NAME
 porthash \- compute, or verify (default), signed hash of Portage repo
 .SH SYNOPSIS
@@ -17,7 +18,7 @@ consitutent ebuilds, manifests etc. have not been tampered with in transit.
 
 The master hash is calculated by first creating a sorted list of hashes
 of the contents of each file in the repo tree
-(excluding \fIdistfiles\fR, \fIpackages\fR and \fI.git\fR
+(excluding \fIdistfiles\fR, \fIpackages\fR, \fIlocal\fR and \fI.git\fR
 directories, optionally the \fImetadata\fR directory,
 and the hash (\fIrepo.hash\fR) and signature
 (\fIrepo.hash.asc\fR) files), then hashing that list itself
@@ -37,8 +38,9 @@ to create the final result (the "master hash").
 
 When \fBporthash\fR is invoked
 \fIwith\fR the \fB--create\fR option, the master hash is saved
-(along with some metadata) in the file \fIrepo.hash\fR in the top-level
-repo directory. It is then signed (by default, using private key
+(along with some metadata) in the file \fIrepo.hash\fR in the
+\fIlocal\fR subdirectory of the top-level
+repo directory (ignored by \fBgemato\fR). It is then signed (by default, using private key
 \fB5D90CAF4\fR (which must exist in root's default keyring and be usable
 without passphrase)
 unless a different one is specified via the \fB--key\fR option), and the
@@ -172,6 +174,7 @@ There is NO WARRANTY, to the extent permitted by law.
 .SH AUTHORS
 sakaki \(em send bug reports or comments to <sakaki@deciban.com>
 .SH "SEE ALSO"
+.BR gemato (1),
 .BR git (1),
 .BR gpg2 (1),
 .BR rsync (1),
