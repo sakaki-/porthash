@@ -234,15 +234,15 @@ usage() {
 	Usage: $0 [options]
 
 	Create, or verify (default), a signed hash of the full Portage tree
-	The hash is saved to ${HASHNAME}, and the
-	signature to ${HASHNAME}.asc
+	The hash is saved to ${HASHFILE}, and the
+	signature to ${HASHFILE}.asc
 
 	Useful when distributing snapshots via e.g. rsync.
 	The hash recursively covers the content, ownership, filetype and permissions
 	of all files and directories under the given repository.
 
 	The hash does _not_ cover distfiles, packages, local or .git directories,
-	nor the ${HASHNAME} or ${HASHNAME}.asc
+	nor the ${HASHFILE} or ${HASHFILE}.asc
 	files themselves. It also excludes the metadata directory, unless
 	the -m option is given.
 
