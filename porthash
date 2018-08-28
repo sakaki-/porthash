@@ -39,7 +39,7 @@ set -u
 set -o pipefail
 shopt -s nullglob
 
-VERSION="1.0.6"
+VERSION="1.0.7"
 RDIR="/usr/portage"
 HASHNAME="repo.hash"
 OLDHASHFILE="./${HASHNAME}"
@@ -169,26 +169,24 @@ verify_master_hash() {
 	iecho "Entering ${RDIR}..."
 	cd "${RDIR}"
 	iecho "Verifying existing hashfile..."
+	if [[ -s "${OLDHASHFILE}" ]]; then
+		wecho "Migrating hashfile to local subdirectory"
+		wecho "(for gemato compatability)"
+		mkdir -pv "${HASHDIR}"
+		mv -v "${OLDHASHFILE}" "${HASHFILE}"
+	fi
 	if [[ ! -s "${HASHFILE}" ]]; then
-		if [[ -s "${OLDHASHFILE}" ]]; then
-			wecho "Migrating hashfile to local subdirectory"
-			wecho "(for gemato compatability)"
-			mkdir -pv "${HASHDIR}"
-			mv -v "${OLDHASHFILE}" "${HASHFILE}"
-		else
-			eecho "No hashfile found!"
-			exit $ERR_NO_HASHFILE
-		fi
+		eecho "No hashfile found!"
+		exit $ERR_NO_HASHFILE
+	fi
+	if [[ -s "${OLDHASHFILE}.asc" ]]; then
+		wecho "Migrating hashfile signature to local subdirectory"
+		wecho "(for gemato compatability)"
+		mv -v "${OLDHASHFILE}.asc" "${HASHFILE}.asc"
 	fi
 	if [[ ! -s "${HASHFILE}.asc" ]]; then
-		if [[ -s "${OLDHASHFILE}.asc" ]]; then
-			wecho "Migrating hashfile signature to local subdirectory"
-			wecho "(for gemato compatability)"
-			mv -v "${OLDHASHFILE}.asc" "${HASHFILE}.asc"
-		else
-			eecho "No hashfile signature found!"
-			exit $ERR_NO_HASHSIG
-		fi
+		eecho "No hashfile signature found!"
+		exit $ERR_NO_HASHSIG
 	fi
 	# OK we have a hashfile, does the signature check out?
 	if ! signout="$(gpg --homedir "${HOMEDIR}" --status-fd 1 --verify "${HASHFILE}.asc" "${HASHFILE}" 2>/dev/null)"; then
