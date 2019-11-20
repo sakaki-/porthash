@@ -39,8 +39,8 @@ set -u
 set -o pipefail
 shopt -s nullglob
 
-VERSION="1.0.7"
-RDIR="/usr/portage"
+VERSION="1.0.8"
+RDIR="$(portageq get_repo_path / gentoo)"
 HASHNAME="repo.hash"
 OLDHASHFILE="./${HASHNAME}"
 HASHDIR="./local"

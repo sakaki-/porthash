@@ -1,4 +1,4 @@
-.TH PORTHASH 1 "Version 1.0.7: August 2018"
+.TH PORTHASH 1 "Version 1.0.8: November 2019"
 .SH NAME
 porthash \- compute, or verify (default), signed hash of Portage repo
 .SH SYNOPSIS
@@ -8,7 +8,7 @@ porthash \- compute, or verify (default), signed hash of Portage repo
 .B porthash
 is a simple script to save, or by default verify, a
 \fBsigned master hash\fR of
-the specified Portage repository tree (by default, \fI/usr/portage\fR).
+the specified Portage repository tree (by default, \fI/var/db/repos/gentoo\fR).
 It is intended to provide assurance -
 when distributing a Portage repo
 snapshot (whether of main \fBgentoo repo\fR, or a custom overlay) over an
@@ -98,7 +98,7 @@ failures at the client end.
 .TP
 .BR \-\-repo\=RDIR
 Specify the base directory for the repo in question. Defaults to
-\fI/usr/portage\fR if unspecified.
+\fI/var/db/repos/gentoo\fR if unspecified.
 .TP
 .BR \-v ", " \-\-version
 Displays the version number of \fBporthash\fR, and exits.
